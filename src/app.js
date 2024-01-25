@@ -11,6 +11,7 @@ app.use(compression());
 
 
 // init db
+require('./dbs/init.mongodb.lv0');
 
 // init route
 app.get('/', (req, res, next) => {
