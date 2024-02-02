@@ -2,9 +2,10 @@
 
 const shopModel = require('../models/shop.model')
 const bcrypt = require('bcrypt')
-const crypto = require('crypto')
+const crypto = require('node:crypto')
 const KeyTokenService = require('./keyToken.service')
 const { createTokenPair } = require('../auth/authUtils')
+const { getInfoData } = require('../utils/index')
 
 const RoleShop = {
   SHOP: 'SHOP',
@@ -14,9 +15,9 @@ const RoleShop = {
 }
 class AuthService {
   
-  static signUp = async (email, name, password) => {
+  static signUp = async ({email, name, password}) => {
     try {
-      const holerShop = await shopModel.findOne({ email}, {}, {}).lean();
+      const holerShop = await shopModel.exists({ email });
       if (holerShop) {
         return {
           code: 'xxx',
@@ -26,25 +27,36 @@ class AuthService {
       const passwordHash = await bcrypt.hash(password, 10)
       const newShop = await shopModel.create({
         name, email, password: passwordHash, roles: [RoleShop.SHOP]
-      }, {})
-      
+      })
+      console.log(1);
       if (newShop) {
-        const {privateKey, publicKey} = crypto.generateKeyPairSync('rsa', {
-          modulusLength: 4096
-        })
+        // const {privateKey, publicKey} = crypto.generateKeyPairSync('rsa', {
+        //   modulusLength: 4096,
+        //   publicKeyEncoding: {
+        //     type: 'pkcs1',
+        //     format: 'pem'
+        //   },
+        //   privateKeyEncoding: {
+        //     type: 'pkcs1',
+        //     format: 'pem'
+        //   }
+        // })
         
-        const publicKeyString = await KeyTokenService.createKeyToken({
+        const privateKey = crypto.randomBytes(64).toString('hex');
+        const publicKey = crypto.randomBytes(64).toString('hex');
+        
+        const keyStore = await KeyTokenService.createKeyToken({
           userId: newShop._id,
-          publicKey
+          publicKey,
+          privateKey
         });
         
-        if (!publicKeyString) {
+        if (!keyStore) {
           return {
             code: 'xxx',
-            message: 'Something went wrong'
+            message: 'keyStore error'
           }
         }
-        
         // create token pair
         const tokens = await createTokenPair({
           userId: newShop._id,
@@ -56,7 +68,7 @@ class AuthService {
         return {
           code: 201,
           metadata: {
-            shop: newShop,
+            shop: getInfoData({fields: ['_id', 'name', 'email'], object: newShop}),
             tokens
           }
         }
